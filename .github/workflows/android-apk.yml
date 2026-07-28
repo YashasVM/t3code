@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   build-apk:
-    name: Build installable APK
+    name: Build standalone release APK
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -63,17 +63,31 @@ jobs:
         working-directory: apps/mobile
         run: pnpm exec expo prebuild --clean --platform android
 
-      - name: Build ARM64 debug APK
+      - name: Build standalone ARM64 release APK
         working-directory: apps/mobile/android
-        run: ./gradlew :app:assembleDebug --no-daemon --max-workers=2 -PreactNativeArchitectures=arm64-v8a
+        run: ./gradlew :app:assembleRelease --no-daemon --max-workers=2 -PreactNativeArchitectures=arm64-v8a
 
-      - name: Rename APK
-        run: cp apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk t3code-android-arm64.apk
+      - name: Locate and verify release APK
+        shell: bash
+        run: |
+          APK="$(find apps/mobile/android/app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | head -n 1)"
+          if [ -z "$APK" ]; then
+            echo "Release APK was not generated"
+            exit 1
+          fi
 
-      - name: Upload APK
+          unzip -l "$APK" | grep -q 'assets/index.android.bundle' || {
+            echo "The APK does not contain the bundled React Native JavaScript"
+            exit 1
+          }
+
+          cp "$APK" t3code-android-arm64-release.apk
+          echo "Verified standalone APK: $APK"
+
+      - name: Upload standalone APK
         uses: actions/upload-artifact@v4
         with:
-          name: t3code-android-arm64-apk
-          path: t3code-android-arm64.apk
+          name: t3code-android-arm64-release-apk
+          path: t3code-android-arm64-release.apk
           if-no-files-found: error
           retention-days: 14
