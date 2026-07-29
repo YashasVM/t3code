@@ -6,7 +6,7 @@ on:
     paths:
       - ".github/workflows/sync-upstream-and-build.yml"
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "17 * * * *"
 
 permissions:
   contents: write
