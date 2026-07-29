@@ -6,7 +6,7 @@ on:
     paths:
       - ".github/workflows/sync-upstream-and-build.yml"
   schedule:
-    - cron: "17 * * * *"
+    - cron: "*/10 * * * *"
 
 permissions:
   contents: write
@@ -58,6 +58,7 @@ jobs:
           git push origin main
 
       - name: Start Android APK build
+        if: steps.changes.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -68,5 +69,5 @@ jobs:
           if [ "${{ steps.changes.outputs.changed }}" = "true" ]; then
             echo "### Upstream synced and APK build started" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "### No upstream changes; APK build started again" >> "$GITHUB_STEP_SUMMARY"
+            echo "### No upstream changes; nothing updated" >> "$GITHUB_STEP_SUMMARY"
           fi
