@@ -1,0 +1,72 @@
+name: Sync upstream and build APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/sync-upstream-and-build.yml"
+  schedule:
+    - cron: "17 * * * *"
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: sync-upstream-t3code
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync latest upstream changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream https://github.com/pingdotgg/t3code.git
+          git fetch upstream main
+
+      - name: Check for upstream changes
+        id: changes
+        shell: bash
+        run: |
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Fork already contains the latest upstream main."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Merge upstream main
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git merge upstream/main --no-edit
+          git push origin main
+
+      - name: Start Android APK build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run android-apk.yml --repo "$GITHUB_REPOSITORY" --ref main
+
+      - name: Summary
+        run: |
+          if [ "${{ steps.changes.outputs.changed }}" = "true" ]; then
+            echo "### Upstream synced and APK build started" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### No upstream changes; APK build started again" >> "$GITHUB_STEP_SUMMARY"
+          fi
