@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "project": "t3code",
+  "source_repo": "pingdotgg/t3code",
+  "target_repo": "YashasVM/t3code",
+  "generated_at": "2026-08-21T15:34:00+05:30",
+  "scan_interval": "PT1H",
+  "status": "baseline-established",
+  "cursor": {
+    "upstream_head": "be7d35aaeb49a04483ec5e0d2284e8b5b70a3b6e",
+    "target_head": "0e096cd2676089b0e7d8068cf468d0114816db57"
+  },
+  "summary": {
+    "new_commits_reviewed": 0,
+    "new_prs_reviewed": 0,
+    "high_risk": 0,
+    "action_required": 1
+  },
+  "recommended_actions": [
+    {
+      "priority": "high",
+      "id": "sync-baseline",
+      "title": "Reconcile the fork with current upstream before applying personal patches",
+      "reason": "The latest observed upstream main commit is from 2026-08-21 while the latest observed fork main commit is from 2026-08-09.",
+      "agent_instruction": "Compare YashasVM/t3code main against pingdotgg/t3code main. Preserve user-specific changes, identify conflicts, run relevant tests, and prepare a safe update branch rather than overwriting custom work."
+    }
+  ],
+  "reviews": [],
+  "baseline": {
+    "recent_upstream_commits": [
+      {"sha":"be7d35aaeb49a04483ec5e0d2284e8b5b70a3b6e","title":"perf(web): stop preview loading rerenders (#7561)","created_at":"2026-08-21T09:58:42Z","url":"https://github.com/pingdotgg/t3code/commit/be7d35aaeb49a04483ec5e0d2284e8b5b70a3b6e"},
+      {"sha":"549201fcfd3baa6cf92f09e5d868c536c80d2d55","title":"fix(clients): default GitHub clones to HTTPS (#7760)","created_at":"2026-08-21T08:55:14Z","url":"https://github.com/pingdotgg/t3code/commit/549201fcfd3baa6cf92f09e5d868c536c80d2d55"},
+      {"sha":"9f12eab383ab0fd348c9d35cd248cd939a2c5796","title":"chore: stop committing pull request assets (#7762)","created_at":"2026-08-21T08:49:43Z","url":"https://github.com/pingdotgg/t3code/commit/9f12eab383ab0fd348c9d35cd248cd939a2c5796"},
+      {"sha":"8f7da3b99e48ffb678d3426a1b5fb602ecdd50f7","title":"ci: only boot the macOS native lint runner when native sources change (#7283)","created_at":"2026-08-21T05:12:19Z","url":"https://github.com/pingdotgg/t3code/commit/8f7da3b99e48ffb678d3426a1b5fb602ecdd50f7"},
+      {"sha":"d7b9a689fe8fd68a87cb34f32d67de8695e61ee4","title":"perf(ci): parallelize the test suite and split out Rust checks (#7286)","created_at":"2026-08-21T05:11:46Z","url":"https://github.com/pingdotgg/t3code/commit/d7b9a689fe8fd68a87cb34f32d67de8695e61ee4"}
+    ],
+    "recent_open_prs": [
+      {"number":7774,"title":"feat(analytics): threads and turns now know which client started them","risk":"medium","url":"https://github.com/pingdotgg/t3code/pull/7774"},
+      {"number":6204,"title":"fix(web): disable server update Button until connected","risk":"low","url":"https://github.com/pingdotgg/t3code/pull/6204"},
+      {"number":7548,"title":"fix(keybindings): allow modified tab shortcuts","risk":"low","url":"https://github.com/pingdotgg/t3code/pull/7548"},
+      {"number":7656,"title":"feat(copilot): add GitHub Copilot provider (via @github/copilot-sdk)","risk":"medium","url":"https://github.com/pingdotgg/t3code/pull/7656"},
+      {"number":7768,"title":"fix(web): dismiss chat tooltips when scrolling","risk":"low","url":"https://github.com/pingdotgg/t3code/pull/7768"},
+      {"number":7772,"title":"fix(web): model picker no longer shows a double border","risk":"low","url":"https://github.com/pingdotgg/t3code/pull/7772"},
+      {"number":7600,"title":"feat(opencode): support OpenCode 2.0 preview","risk":"high","url":"https://github.com/pingdotgg/t3code/pull/7600"},
+      {"number":7313,"title":"feat(web): add toggleable confirmation before unpinning a thread","risk":"low","url":"https://github.com/pingdotgg/t3code/pull/7313"},
+      {"number":7770,"title":"fix(server): abort OpenCode child sessions on interrupt","risk":"medium","url":"https://github.com/pingdotgg/t3code/pull/7770"},
+      {"number":7126,"title":"fix(web): read Arabic and Hebrew messages in the right direction","risk":"medium","url":"https://github.com/pingdotgg/t3code/pull/7126"}
+    ]
+  }
+}
