@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
+  <title>T3 Code · Upstream Review Feed</title>
+  <style>
+    :root { --bg:#0a0a0a; --panel:#111; --panel2:#151515; --text:#f4f4f5; --muted:#a1a1aa; --line:#27272a; --good:#86efac; --warn:#fde68a; --bad:#fca5a5; --accent:#d4d4d8; }
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    a{color:inherit}.shell{max-width:1120px;margin:auto;padding:44px 20px 80px}.top{display:flex;gap:24px;align-items:flex-start;justify-content:space-between;margin-bottom:26px}.eyebrow{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.12em}.title{font-size:32px;line-height:1.05;letter-spacing:-.04em;margin:7px 0 10px}.sub{max-width:680px;color:var(--muted)}.pill{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--panel);padding:7px 10px;border-radius:999px;color:var(--muted);white-space:nowrap}.dot{width:7px;height:7px;border-radius:50%;background:var(--good)}
+    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:20px 0 30px}.metric,.card{border:1px solid var(--line);background:var(--panel);border-radius:14px}.metric{padding:16px}.metric b{display:block;font-size:23px;letter-spacing:-.03em}.metric span{color:var(--muted);font-size:12px}.section{margin-top:30px}.section-head{display:flex;justify-content:space-between;align-items:end;margin-bottom:10px}.section h2{font-size:15px;margin:0}.section small{color:var(--muted)}.list{display:grid;gap:10px}.card{padding:16px}.row{display:flex;gap:12px;align-items:flex-start;justify-content:space-between}.card h3{font-size:14px;margin:0 0 7px}.meta{color:var(--muted);font-size:12px}.tag{font-size:11px;text-transform:uppercase;letter-spacing:.08em;padding:4px 7px;border:1px solid var(--line);border-radius:7px;color:var(--muted);white-space:nowrap}.tag.high,.tag.critical{color:var(--bad)}.tag.medium{color:var(--warn)}.tag.low{color:var(--good)}.body{margin-top:12px;color:#d4d4d8}.findings{margin:10px 0 0;padding-left:19px}.action{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}.action b{display:block;font-size:12px;margin-bottom:4px}.empty{color:var(--muted);padding:18px 0}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}.footer{margin-top:38px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);display:flex;gap:12px;justify-content:space-between;flex-wrap:wrap}.links{display:flex;gap:14px;flex-wrap:wrap}.error{color:var(--bad);border:1px solid #4c1d1d;padding:14px;border-radius:12px;background:#170b0b}
+    @media(max-width:760px){.top{display:block}.pill{margin-top:16px}.grid{grid-template-columns:repeat(2,1fr)}.title{font-size:27px}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="top">
+      <div>
+        <div class="eyebrow">YashasVM / t3code</div>
+        <h1 class="title">Upstream review feed</h1>
+        <div class="sub">Hourly compatibility and code-review notes for changes flowing from <span class="mono">pingdotgg/t3code</span> into your customized fork.</div>
+      </div>
+      <div class="pill"><span class="dot"></span><span id="status">Loading feed…</span></div>
+    </header>
+
+    <section class="grid">
+      <div class="metric"><b id="mCommits">—</b><span>new commits reviewed</span></div>
+      <div class="metric"><b id="mPrs">—</b><span>new PRs reviewed</span></div>
+      <div class="metric"><b id="mRisk">—</b><span>high-risk items</span></div>
+      <div class="metric"><b id="mAction">—</b><span>actions required</span></div>
+    </section>
+
+    <section class="section">
+      <div class="section-head"><h2>Recommended actions</h2><small id="generated">—</small></div>
+      <div id="actions" class="list"></div>
+    </section>
+
+    <section class="section">
+      <div class="section-head"><h2>Latest reviews</h2><small>Concrete findings over summaries</small></div>
+      <div id="reviews" class="list"></div>
+    </section>
+
+    <section class="section">
+      <div class="section-head"><h2>Baseline watchlist</h2><small>Current upstream context</small></div>
+      <div id="baseline" class="list"></div>
+    </section>
+
+    <footer class="footer">
+      <div>Branch: <span class="mono">agent-review-feed</span> · refreshes from <span class="mono">feed.json</span></div>
+      <div class="links"><a href="./feed.json">Machine JSON</a><a href="./agent.md">Agent contract</a></div>
+    </footer>
+  </main>
+<script>
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const tag=r=>`<span class="tag ${esc(r||'low')}">${esc(r||'low')}</span>`;
+const actionCard=a=>`<article class="card"><div class="row"><div><h3>${esc(a.title)}</h3><div class="meta">${esc(a.id||'action')} · priority ${esc(a.priority||'medium')}</div></div>${tag(a.priority)}</div><div class="body">${esc(a.reason||'')}</div>${a.agent_instruction?`<div class="action"><b>Agent instruction</b>${esc(a.agent_instruction)}</div>`:''}</article>`;
+const reviewCard=r=>`<article class="card"><div class="row"><div><h3><a href="${esc(r.url||'#')}" target="_blank" rel="noreferrer">${esc(r.title)}</a></h3><div class="meta">${esc(r.type||'change')} · ${esc(r.id||'')}</div></div>${tag(r.risk)}</div><div class="body">${esc(r.verdict||'')}</div>${Array.isArray(r.findings)&&r.findings.length?`<ul class="findings">${r.findings.map(f=>`<li>${esc(typeof f==='string'?f:(f.summary||JSON.stringify(f)))}</li>`).join('')}</ul>`:''}${r.compatibility?`<div class="action"><b>Compatibility</b>${esc(r.compatibility)}</div>`:''}${r.agent_instruction?`<div class="action"><b>Next action</b>${esc(r.agent_instruction)}</div>`:''}</article>`;
+(async()=>{try{
+  const res=await fetch('./feed.json?ts='+Date.now(),{cache:'no-store'}); if(!res.ok)throw new Error('HTTP '+res.status); const d=await res.json();
+  document.getElementById('status').textContent=d.status||'online'; document.getElementById('generated').textContent='Last scan '+new Date(d.generated_at).toLocaleString();
+  const s=d.summary||{}; mCommits.textContent=s.new_commits_reviewed??0; mPrs.textContent=s.new_prs_reviewed??0; mRisk.textContent=s.high_risk??0; mAction.textContent=s.action_required??0;
+  actions.innerHTML=(d.recommended_actions||[]).map(actionCard).join('')||'<div class="empty">No actions required.</div>';
+  reviews.innerHTML=(d.reviews||[]).map(reviewCard).join('')||'<div class="empty">Baseline established. New upstream changes will appear here after the next scan.</div>';
+  const commits=(d.baseline?.recent_upstream_commits||[]).slice(0,5), prs=(d.baseline?.recent_open_prs||[]).slice(0,5);
+  baseline.innerHTML=`<article class="card"><h3>Recent upstream commits</h3>${commits.map(c=>`<div class="body"><a href="${esc(c.url)}" target="_blank" rel="noreferrer">${esc(c.title)}</a><div class="meta mono">${esc(c.sha?.slice(0,12))}</div></div>`).join('')}</article><article class="card"><h3>Open PR watchlist</h3>${prs.map(p=>`<div class="body"><a href="${esc(p.url)}" target="_blank" rel="noreferrer">#${esc(p.number)} ${esc(p.title)}</a> ${tag(p.risk)}</div>`).join('')}</article>`;
+}catch(e){document.querySelector('.shell').insertAdjacentHTML('beforeend',`<div class="error">Could not load feed.json: ${esc(e.message)}</div>`); document.getElementById('status').textContent='feed unavailable';}})();
+</script>
+</body>
+</html>
