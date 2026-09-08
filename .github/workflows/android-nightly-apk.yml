@@ -1,0 +1,85 @@
+name: Build T3 Code Android Nightly APK
+
+on:
+  push:
+    branches:
+      - nightly-apk-build-20260908
+    paths:
+      - ".github/workflows/android-nightly-apk.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    name: Build nightly ARM64 APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    env:
+      APP_VARIANT: preview
+      EXPO_NO_GIT_STATUS: "1"
+      CI: "1"
+      NODE_OPTIONS: --max-old-space-size=8192
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          cache: true
+          run-install: |
+            args:
+              - --filter=@t3tools/mobile...
+
+      - name: Expose pnpm
+        run: |
+          pnpm_version="$(node --print "require('./package.json').packageManager.split('@').pop()")"
+          vp_pnpm_bin="$HOME/.vite-plus/package_manager/pnpm/$pnpm_version/pnpm/bin"
+          echo "$vp_pnpm_bin" >> "$GITHUB_PATH"
+          "$vp_pnpm_bin/pnpm" --version
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Generate Android project
+        working-directory: apps/mobile
+        run: pnpm exec expo prebuild --clean --platform android
+
+      - name: Build ARM64 release APK
+        working-directory: apps/mobile/android
+        run: ./gradlew :app:assembleRelease --no-daemon --max-workers=2 -PreactNativeArchitectures=arm64-v8a
+
+      - name: Verify and stage APK
+        shell: bash
+        run: |
+          APK="$(find apps/mobile/android/app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | head -n 1)"
+          if [ -z "$APK" ]; then
+            echo "Release APK was not generated"
+            exit 1
+          fi
+          unzip -l "$APK" | grep -q 'assets/index.android.bundle' || {
+            echo "APK does not contain the bundled React Native JavaScript"
+            exit 1
+          }
+          cp "$APK" t3code-nightly-android-arm64.apk
+          sha256sum t3code-nightly-android-arm64.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: t3code-nightly-android-arm64-apk
+          path: t3code-nightly-android-arm64.apk
+          if-no-files-found: error
+          retention-days: 14
