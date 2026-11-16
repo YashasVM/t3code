@@ -789,7 +789,9 @@ export function HomeScreen(props: HomeScreenProps) {
                     />
                   ) : null
                 }
-                ListEmptyComponent={v2ListEmpty}
+                ListEmptyComponent={
+                  <View className={sidebarSurface ? "px-3" : "px-5"}>{v2ListEmpty}</View>
+                }
                 style={{ flex: 1 }}
                 automaticallyAdjustsScrollIndicatorInsets={Platform.OS === "ios"}
                 contentInsetAdjustmentBehavior="never"
