@@ -7,7 +7,17 @@ import {
   toolOutputImages,
 } from "@t3tools/shared/toolOutput";
 
-import { openCodeToolOutput, openCodeToolTurnItem } from "./toolItems.ts";
+import { openCodeApprovalPrompt, openCodeToolOutput, openCodeToolTurnItem } from "./toolItems.ts";
+
+it.each([
+  { resources: [], expected: "demo_greet" },
+  { resources: ["*"], expected: "demo_greet" },
+  { resources: ["*", "*"], expected: "demo_greet" },
+  { resources: ["src/*"], expected: "src/*" },
+  { resources: ["ls *", "pwd"], expected: "ls *\npwd" },
+])("identifies the permission action for $resources", ({ resources, expected }) => {
+  expect(openCodeApprovalPrompt("demo_greet", resources)).toBe(expected);
+});
 
 describe("openCodeToolOutput", () => {
   it("preserves inline raster file content and leaves other files unserved", () => {

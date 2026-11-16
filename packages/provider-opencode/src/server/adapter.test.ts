@@ -1399,6 +1399,21 @@ describe("OpenCodeAdapterV2", () => {
             },
           }),
         );
+        for (const [index, patterns] of [[], ["*"], ["*", "*"], ["src/*"]].entries()) {
+          yield* Effect.promise(() =>
+            nativeEvents.push({
+              type: "permission.asked",
+              properties: {
+                id: `mcp-permission-${index}`,
+                sessionID: nativeSessionId,
+                permission: "demo_greet",
+                patterns,
+                always: [],
+                metadata: {},
+              },
+            }),
+          );
+        }
         yield* Effect.promise(() =>
           nativeEvents.push({
             type: "session.compacted",
@@ -1408,6 +1423,12 @@ describe("OpenCodeAdapterV2", () => {
         const events = yield* Fiber.join(received);
         const items = events.flatMap((event) =>
           event.type === "turn_item.updated" ? [event.turnItem] : [],
+        );
+        assert.deepEqual(
+          items
+            .filter((item) => item.type === "approval_request" && item.title === "demo_greet")
+            .map((item) => item.prompt),
+          ["demo_greet", "demo_greet", "demo_greet", "src/*"],
         );
         const commands = items.filter((item) => item.type === "command_execution");
         assert.deepEqual(

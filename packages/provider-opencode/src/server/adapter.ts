@@ -82,7 +82,12 @@ import {
   makeSubagentChildThread,
   subagentThreadTitle,
 } from "@t3tools/provider-core/server/subagentProjection";
-import { openCodeCommandFailed, openCodeToolOutput, openCodeToolTurnItem } from "./toolItems.ts";
+import {
+  openCodeApprovalPrompt,
+  openCodeCommandFailed,
+  openCodeToolOutput,
+  openCodeToolTurnItem,
+} from "./toolItems.ts";
 
 export const OPENCODE_PROVIDER = ProviderDriverKind.make("opencode");
 export const OPENCODE_DEFAULT_INSTANCE_ID = defaultInstanceIdForDriver(OPENCODE_PROVIDER);
@@ -2008,10 +2013,7 @@ export const makeOpenCodeAdapterV2 = Effect.fn("makeOpenCodeAdapterV2")(function
             type: "approval_request",
             requestId: pending.requestId,
             requestKind: pending.requestKind === "user_input" ? "command" : pending.requestKind,
-            prompt:
-              permission.patterns.length === 0
-                ? permission.permission
-                : permission.patterns.join("\n"),
+            prompt: openCodeApprovalPrompt(permission.permission, permission.patterns),
           };
         };
 

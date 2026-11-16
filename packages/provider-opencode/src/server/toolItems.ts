@@ -8,6 +8,10 @@ import {
   type ToolOutputImage,
 } from "@t3tools/shared/toolOutput";
 
+export function openCodeApprovalPrompt(action: string, resources: ReadonlyArray<string>): string {
+  return resources.every((resource) => resource === "*") ? action : resources.join("\n");
+}
+
 export function openCodeToolOutput(
   output: string | undefined,
   files: ReadonlyArray<{ readonly uri: string; readonly mime: string }> = [],
