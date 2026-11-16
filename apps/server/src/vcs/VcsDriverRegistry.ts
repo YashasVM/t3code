@@ -16,6 +16,7 @@ import * as VcsDriver from "./VcsDriver.ts";
 const DETECTION_CACHE_CAPACITY = 2_048;
 // Detection costs three git processes per cwd; cached hits still stat disk, so TTL bounds only undetectable changes.
 const DETECTION_CACHE_TTL = Duration.minutes(5);
+const NEGATIVE_DETECTION_CACHE_TTL = Duration.minutes(1);
 
 export interface VcsDriverResolveInput {
   readonly cwd: string;
@@ -33,6 +34,9 @@ export class VcsDriverRegistry extends Context.Service<
   {
     readonly get: (kind: VcsDriverKind) => Effect.Effect<VcsDriver.VcsDriver["Service"], VcsError>;
     readonly detect: (
+      input: VcsDriverResolveInput,
+    ) => Effect.Effect<VcsDriverHandle | null, VcsError>;
+    readonly detectOrFail: (
       input: VcsDriverResolveInput,
     ) => Effect.Effect<VcsDriverHandle | null, VcsError>;
     readonly resolve: (input: VcsDriverResolveInput) => Effect.Effect<VcsDriverHandle, VcsError>;
@@ -85,16 +89,7 @@ export const make = Effect.gen(function* () {
     driver: VcsDriver.VcsDriver["Service"],
     cwd: string,
   ) {
-    // Status, review and source control show a repository Git cannot read as none at all.
-    // Checkpoints need the failure, so CheckpointStore asks the driver directly.
-    const repository = yield* driver.detectRepository(cwd).pipe(
-      Effect.catchTags({
-        VcsProcessExitError: (error) =>
-          error.operation === GitVcsDriver.WORK_TREE_PROBE_OPERATION
-            ? Effect.succeed(null)
-            : Effect.fail(error),
-      }),
-    );
+    const repository = yield* driver.detectRepository(cwd);
     if (!repository) {
       return null;
     }
@@ -128,58 +123,94 @@ export const make = Effect.gen(function* () {
     );
   };
 
-  const readDiskState = (cwd: string, repository: VcsRepositoryIdentity) =>
-    Effect.all({
-      gitEntries: Effect.forEach(foldersBelowRoot(cwd, repository.rootPath), (folder) =>
-        fileSystem.exists(path.join(folder, ".git")),
-      ),
-      repositoryOnDisk: Effect.forEach(
-        repository.metadataPath === null
-          ? [cwd]
-          : [cwd, path.resolve(cwd, repository.metadataPath)],
-        (target) => fileSystem.exists(target),
-      ).pipe(Effect.map((results) => results.every(Boolean))),
-    }).pipe(Effect.orElseSucceed(() => null));
+  const foldersToRoot = (cwd: string) => {
+    const root = path.parse(path.resolve(cwd)).root;
+    return [...foldersBelowRoot(cwd, root), root];
+  };
+
+  const readDiskState = Effect.fn("VcsDriverRegistry.readDiskState")(
+    function* (cwd: string, repository: VcsRepositoryIdentity | null) {
+      const realCwd = yield* fileSystem.realPath(cwd);
+      const folders =
+        repository === null
+          ? [...new Set([...foldersToRoot(cwd), ...foldersToRoot(realCwd)])]
+          : foldersBelowRoot(cwd, repository.rootPath);
+      const disk = yield* Effect.all({
+        gitEntries: Effect.forEach(folders, (folder) =>
+          fileSystem.exists(path.join(folder, ".git")),
+        ),
+        repositoryOnDisk: Effect.forEach(
+          repository === null || repository.metadataPath === null
+            ? [cwd]
+            : [cwd, path.resolve(cwd, repository.metadataPath)],
+          (target) => fileSystem.exists(target),
+        ).pipe(Effect.map((results) => results.every(Boolean))),
+      });
+      return { ...disk, realCwd };
+    },
+    Effect.orElseSucceed(() => null),
+  );
 
   const detectionCache = yield* Cache.makeWith<
     string,
-    { readonly handle: VcsDriverHandle; readonly gitEntries: ReadonlyArray<boolean> } | null,
+    {
+      readonly handle: VcsDriverHandle | null;
+      readonly gitEntries: ReadonlyArray<boolean>;
+      readonly realCwd: string | null;
+    },
     VcsError
   >(
     (key) =>
       Effect.gen(function* () {
         const input = parseDetectionCacheKey(key);
         const handle = yield* detectResolvedKind(input);
-        if (handle === null) return null;
-        const disk = yield* readDiskState(input.cwd, handle.repository);
-        return { handle, gitEntries: disk?.gitEntries ?? [] };
+        const disk = yield* readDiskState(input.cwd, handle?.repository ?? null);
+        return { handle, gitEntries: disk?.gitEntries ?? [], realCwd: disk?.realCwd ?? null };
       }),
     {
       capacity: DETECTION_CACHE_CAPACITY,
       timeToLive: Exit.match({
-        onSuccess: (detected) => (detected === null ? Duration.zero : DETECTION_CACHE_TTL),
+        onSuccess: (detected) =>
+          detected.realCwd === null ||
+          (detected.handle === null && detected.gitEntries.some(Boolean))
+            ? Duration.zero
+            : detected.handle === null
+              ? NEGATIVE_DETECTION_CACHE_TTL
+              : DETECTION_CACHE_TTL,
         onFailure: () => Duration.zero,
       }),
     },
   );
 
+  const detectOrFail: VcsDriverRegistry["Service"]["detectOrFail"] = Effect.fn(
+    "VcsDriverRegistry.detectOrFail",
+  )(function* (input) {
+    const requestedKind = yield* projectConfig.resolveKind(input);
+    const key = detectionCacheKey({ cwd: input.cwd, requestedKind });
+    const cached = yield* Cache.get(detectionCache, key);
+    const disk = yield* readDiskState(input.cwd, cached.handle?.repository ?? null);
+    if (
+      disk?.repositoryOnDisk &&
+      disk.realCwd === cached.realCwd &&
+      disk.gitEntries.length === cached.gitEntries.length &&
+      disk.gitEntries.every((exists, index) => exists === cached.gitEntries[index])
+    ) {
+      return cached.handle;
+    }
+    yield* Cache.invalidate(detectionCache, key);
+    return (yield* Cache.get(detectionCache, key)).handle;
+  });
+
   const detect: VcsDriverRegistry["Service"]["detect"] = Effect.fn("VcsDriverRegistry.detect")(
-    function* (input) {
-      const requestedKind = yield* projectConfig.resolveKind(input);
-      const key = detectionCacheKey({ cwd: input.cwd, requestedKind });
-      const cached = yield* Cache.get(detectionCache, key);
-      if (cached === null) return null;
-      const disk = yield* readDiskState(input.cwd, cached.handle.repository);
-      if (
-        disk?.repositoryOnDisk &&
-        disk.gitEntries.length === cached.gitEntries.length &&
-        disk.gitEntries.every((exists, index) => exists === cached.gitEntries[index])
-      ) {
-        return cached.handle;
-      }
-      yield* Cache.invalidate(detectionCache, key);
-      return (yield* Cache.get(detectionCache, key))?.handle ?? null;
-    },
+    (input) =>
+      detectOrFail(input).pipe(
+        Effect.catchTags({
+          VcsProcessExitError: (error) =>
+            error.operation === GitVcsDriver.WORK_TREE_PROBE_OPERATION
+              ? Effect.succeed(null)
+              : Effect.fail(error),
+        }),
+      ),
   );
 
   const resolve: VcsDriverRegistry["Service"]["resolve"] = Effect.fn("VcsDriverRegistry.resolve")(
@@ -204,6 +235,7 @@ export const make = Effect.gen(function* () {
   return VcsDriverRegistry.of({
     get,
     detect,
+    detectOrFail,
     resolve,
   });
 });

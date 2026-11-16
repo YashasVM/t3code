@@ -11,7 +11,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as PlatformError from "effect/PlatformError";
 import * as Scope from "effect/Scope";
-import { describe, expect } from "vite-plus/test";
+import { describe, expect, vi } from "vite-plus/test";
 
 import * as Base64Url from "effect/encoding/Base64Url";
 import { parseTurnDiffFilesFromNumstat } from "./Diffs.ts";
@@ -109,6 +109,20 @@ function buildLargeText(lineCount = 5_000): string {
 }
 
 it.layer(layerTest)("CheckpointStore.layer", (it) => {
+  it.effect("reuses a negative Git probe across repeated checkpoint checks", () =>
+    Effect.gen(function* () {
+      const cwd = yield* makeTmpDir();
+      const vcsProcess = yield* VcsProcess.VcsProcess;
+      using run = vi.spyOn(vcsProcess, "run");
+      const store = yield* CheckpointStore.CheckpointStore;
+      for (let index = 0; index < 10; index++) {
+        expect(yield* store.isGitRepository(cwd)).toBe(false);
+      }
+      expect(
+        run.mock.calls.filter(([input]) => input.args.includes("--is-inside-work-tree")),
+      ).toHaveLength(1);
+    }),
+  );
   it.effect("detects a nested workspace without its own .git entry", () =>
     Effect.gen(function* () {
       const tmp = yield* makeTmpDir();
@@ -131,6 +145,9 @@ it.layer(layerTest)("CheckpointStore.layer", (it) => {
       expect(yield* registry.detect({ cwd: tmp })).toBeNull();
       const probe = yield* Effect.flip(checkpointStore.isGitRepository(tmp));
       expect(probe._tag).toBe("VcsProcessExitError");
+      yield* writeTextFile(NodePath.join(tmp, ".git", "config"), "");
+      expect(yield* registry.detect({ cwd: tmp })).not.toBeNull();
+      expect(yield* checkpointStore.isGitRepository(tmp)).toBe(true);
     }),
   );
   describe("diffCheckpoints", () => {

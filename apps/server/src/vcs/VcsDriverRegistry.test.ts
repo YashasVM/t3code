@@ -1,10 +1,14 @@
+// @effect-diagnostics nodeBuiltinImport:off -- Junctions let this fixture create directory links without Windows symlink privileges.
+import * as NodeFSP from "node:fs/promises";
 import { assert, it, describe } from "@effect/vitest";
+import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
+import * as TestClock from "effect/testing/TestClock";
 import { ChildProcessSpawner } from "effect/process";
 import { VcsProcessExitError } from "@t3tools/contracts";
 
@@ -42,7 +46,7 @@ describe("VcsDriverRegistry", () => {
               const path = yield* Path.Path;
               const command = normalizeGitArgs(input.args).join(" ");
               calls.push(command);
-              let repoDir: string | null = input.cwd;
+              let repoDir: string | null = yield* fs.realPath(input.cwd);
               while (repoDir !== null && !(yield* fs.exists(path.join(repoDir, ".git")))) {
                 repoDir = repoDir === rootDir ? null : path.dirname(repoDir);
               }
@@ -122,11 +126,74 @@ describe("VcsDriverRegistry", () => {
         const registry = yield* VcsDriverRegistry.VcsDriverRegistry;
         assert.equal(yield* registry.detect({ cwd: repoDir }), null);
 
+        assert.equal(yield* registry.detect({ cwd: repoDir }), null);
+        assert.equal(calls.filter((call) => call === DETECT_COMMAND).length, 1);
+
         yield* fs.makeDirectory(path.join(repoDir, ".git"));
 
         assert.equal((yield* registry.detect({ cwd: repoDir }))?.repository.rootPath, repoDir);
         assert.equal(calls.filter((call) => call === DETECT_COMMAND).length, 2);
       }).pipe(Effect.provide(makeDiskBackedLayer(repoDir, calls)));
+    }).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
+  );
+
+  it.effect("detects a repository initialized above a symlinked workspace", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const root = yield* fs.makeTempDirectoryScoped({ prefix: "t3-vcs-symlink-" });
+      const parent = path.join(root, "physical");
+      const child = path.join(parent, "child");
+      const cwd = path.join(root, "logical");
+      yield* fs.makeDirectory(child, { recursive: true });
+      const platform = yield* HostProcess.Platform;
+      yield* Effect.promise(() =>
+        NodeFSP.symlink(child, cwd, platform === "win32" ? "junction" : "dir"),
+      );
+      const calls: string[] = [];
+      yield* Effect.gen(function* () {
+        const registry = yield* VcsDriverRegistry.VcsDriverRegistry;
+        assert.equal(yield* registry.detect({ cwd }), null);
+        yield* fs.makeDirectory(path.join(parent, ".git"));
+        assert.equal((yield* registry.detect({ cwd }))?.repository.rootPath, parent);
+      }).pipe(Effect.provide(makeDiskBackedLayer(root, calls)));
+    }).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
+  );
+
+  it.effect("invalidates a negative lookup when an ancestor becomes a repository", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const root = yield* fs.makeTempDirectoryScoped({ prefix: "t3-vcs-registry-" });
+      const cwd = path.join(root, "project");
+      yield* fs.makeDirectory(cwd);
+      const calls: string[] = [];
+      yield* Effect.gen(function* () {
+        const registry = yield* VcsDriverRegistry.VcsDriverRegistry;
+        assert.equal(yield* registry.detect({ cwd }), null);
+        assert.equal(yield* registry.detect({ cwd }), null);
+        assert.equal(calls.filter((call) => call === DETECT_COMMAND).length, 1);
+        yield* fs.makeDirectory(path.join(root, ".git"));
+        assert.equal((yield* registry.detect({ cwd }))?.repository.rootPath, root);
+        assert.equal(calls.filter((call) => call === DETECT_COMMAND).length, 2);
+      }).pipe(Effect.provide(makeDiskBackedLayer(root, calls)));
+    }).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
+  );
+
+  it.effect("expires an unchanged negative lookup after a minute", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const cwd = yield* fs.makeTempDirectoryScoped({ prefix: "t3-vcs-registry-" });
+      const calls: string[] = [];
+      yield* Effect.gen(function* () {
+        const registry = yield* VcsDriverRegistry.VcsDriverRegistry;
+        assert.equal(yield* registry.detect({ cwd }), null);
+        assert.equal(yield* registry.detect({ cwd }), null);
+        assert.equal(calls.filter((call) => call === DETECT_COMMAND).length, 1);
+        yield* TestClock.adjust("61 seconds");
+        assert.equal(yield* registry.detect({ cwd }), null);
+        assert.equal(calls.filter((call) => call === DETECT_COMMAND).length, 2);
+      }).pipe(Effect.provide(makeDiskBackedLayer(cwd, calls)));
     }).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
   const makeFailingLayer = (detectOutput: VcsProcess.VcsProcessOutput) =>
