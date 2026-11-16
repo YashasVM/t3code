@@ -1,4 +1,5 @@
-import type { OrchestrationV2ProviderFailureClass } from "@t3tools/contracts";
+import type { OrchestrationV2ProviderFailureClass, OrchestrationV2Run } from "@t3tools/contracts";
+import { runRanAfter } from "@t3tools/shared/orchestrationV2ThreadError";
 import {
   CHATGPT_USAGE_LIMIT_CODE,
   CHATGPT_WORKSPACE_ADMIN_REQUEST,
@@ -45,8 +46,29 @@ export function getThreadErrorBannerMessage(error: string): string {
     : error;
 }
 
-export function getThreadErrorBannerKey(threadKey: string, error: string | null): string | null {
-  return error === null ? null : `${threadKey}\u0000${error}`;
+export function threadErrorBannerRunId(
+  runs: ReadonlyArray<Pick<OrchestrationV2Run, "id" | "status" | "ordinal" | "completedAt">>,
+  localError: string | null,
+) {
+  if (localError !== null) return null;
+  let failed: (typeof runs)[number] | null = null;
+  let completed: (typeof runs)[number] | null = null;
+  for (const run of runs) {
+    if (run.status === "failed" && (failed === null || runRanAfter(run, failed))) failed = run;
+    if (run.status === "completed" && (completed === null || runRanAfter(run, completed)))
+      completed = run;
+  }
+  // Provider sessions can retain a failed run's error while the next run starts.
+  if (failed === null || (completed !== null && runRanAfter(completed, failed))) return null;
+  return failed.id;
+}
+
+export function getThreadErrorBannerKey(
+  threadKey: string,
+  error: string | null,
+  runId?: string | null,
+): string | null {
+  return error === null ? null : `${threadKey}\u0000${runId ?? ""}\u0000${error}`;
 }
 
 export function shouldShowThreadErrorBanner(
