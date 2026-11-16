@@ -144,6 +144,27 @@ export function formatShortTimestamp(isoDate: string, timestampFormat: Timestamp
   return getTimestampFormatter(timestampFormat, false).format(date);
 }
 
+export function formatScheduleTimestamp(isoDate: string, timestampFormat: TimestampFormat): string {
+  const cacheKey = `schedule:${timestampFormat}`;
+  let formatter = timestampFormatterCache.get(cacheKey);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(timestampLocale, {
+      dateStyle: "medium",
+      timeStyle: "short",
+      ...(timestampFormat === "locale" ? {} : { hour12: timestampFormat === "12-hour" }),
+    });
+    timestampFormatterCache.set(cacheKey, formatter);
+  }
+  return formatter.format(new Date(isoDate));
+}
+
+export function formatTimeOfDay(timeOfDay: string, timestampFormat: TimestampFormat): string {
+  const [hour, minute] = timeOfDay.split(":").map(Number);
+  return getTimestampFormatter(timestampFormat, false, "UTC").format(
+    new Date(Date.UTC(2000, 0, 1, hour, minute)),
+  );
+}
+
 const numericDateOptions: Intl.DateTimeFormatOptions = { month: "numeric", day: "numeric" };
 const numericDateWithYearOptions: Intl.DateTimeFormatOptions = {
   ...numericDateOptions,

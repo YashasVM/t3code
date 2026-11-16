@@ -24,6 +24,8 @@ import {
   type WebhookFilterDraft,
 } from "@t3tools/client-runtime/scheduled-task-webhook";
 import { scheduleTimeZoneLabel } from "@t3tools/client-runtime/scheduled-task-time-zone";
+import type { TimestampFormat } from "@t3tools/contracts/settings";
+import { formatScheduleTimestamp, formatTimeOfDay } from "../../timestampFormat";
 
 import {
   resolveProjectSettings,
@@ -35,18 +37,15 @@ import type { ResolvedSettingsScope } from "./settingsScope";
 
 export const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
-const ONCE_FORMATTER = new Intl.DateTimeFormat(undefined, {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
-
 export function scheduleLabel(
   schedule: ScheduledTaskSchedule,
   timeZone?: string,
   runAt?: string | null,
+  timestampFormat: TimestampFormat = "24-hour",
 ): string {
   if (schedule.type === "webhook") return "On webhook";
-  if (schedule.type === "once") return `Once, ${ONCE_FORMATTER.format(new Date(schedule.runAt))}`;
+  if (schedule.type === "once")
+    return `Once, ${formatScheduleTimestamp(schedule.runAt, timestampFormat)}`;
   if (schedule.type === "interval") {
     const minutes = schedule.everyMs / 60_000;
     return Number.isInteger(minutes)
@@ -61,7 +60,7 @@ export function scheduleLabel(
         ? "Weekdays"
         : weekdays.map((day) => WEEKDAY_LABELS[day]).join(", ");
   const zone = scheduleTimeZoneLabel(timeZone, runAt);
-  return `${days} at ${schedule.timeOfDay}${zone === undefined ? "" : ` ${zone}`}`;
+  return `${days} at ${formatTimeOfDay(schedule.timeOfDay, timestampFormat)}${zone === undefined ? "" : ` ${zone}`}`;
 }
 
 export function matchesScheduledTaskScope(

@@ -26,6 +26,16 @@ import {
   taskToDraft,
   unbindDraftFromThread,
 } from "./scheduledTasksSettings.logic";
+import { formatShortTimestamp } from "../../timestampFormat";
+
+it.each(["12-hour", "24-hour"] as const)("schedule summaries honor %s", (format) => {
+  const runAt = new Date(2026, 10, 20, 17, 30).toISOString();
+  const time = formatShortTimestamp(runAt, format);
+  expect(scheduleLabel({ type: "once", runAt }, undefined, undefined, format)).toContain(time);
+  expect(
+    scheduleLabel({ type: "fixed_time", timeOfDay: "17:30" }, undefined, undefined, format),
+  ).toBe(`Daily at ${time}`);
+});
 
 const laptopId = EnvironmentId.make("laptop");
 const serverId = EnvironmentId.make("server");
