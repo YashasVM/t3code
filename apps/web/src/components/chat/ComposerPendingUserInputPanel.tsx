@@ -151,19 +151,25 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
   useEffect(() => {
     if (!activeQuestion || responseDisabled || isCollapsed || backgroundThread) return;
     const handler = (event: globalThis.KeyboardEvent) => {
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.metaKey || event.ctrlKey || event.altKey || event.isComposing) return;
       const target = event.target;
       if (isInSideChatPane(target)) return;
       if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
         return;
       }
-      if (
-        target instanceof HTMLElement &&
-        target.closest(
-          'select, [contenteditable]:not([contenteditable="false"]), [role="dialog"], [aria-modal="true"], [role="menu"], [role="combobox"], [data-slot$="popup"]',
-        )
-      ) {
-        return;
+      if (target instanceof HTMLElement) {
+        const emptyComposer = target.closest('[data-testid="composer-editor"]');
+        if (
+          target.closest(
+            'select, [role="dialog"], [aria-modal="true"], [role="menu"], [data-slot$="popup"]',
+          ) ||
+          (target.closest('[contenteditable]:not([contenteditable="false"])') &&
+            (emptyComposer === null || emptyComposer.textContent !== "")) ||
+          (target.closest('[role="combobox"]') &&
+            !target.closest('[data-chat-provider-model-picker="true"][aria-expanded="false"]'))
+        ) {
+          return;
+        }
       }
       const digit = Number.parseInt(event.key, 10);
       if (Number.isNaN(digit) || digit < 1 || digit > 9) return;
@@ -174,8 +180,8 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
       event.preventDefault();
       selectOptionFromShortcut(activeQuestion.id, option.value ?? option.label);
     };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
+    document.addEventListener("keydown", handler, true);
+    return () => document.removeEventListener("keydown", handler, true);
   }, [activeQuestion, backgroundThread, isCollapsed, responseDisabled]);
 
   if (!activeQuestion) {

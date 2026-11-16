@@ -29,6 +29,33 @@ const prompt: PendingUserInput = {
 it.each<{ focus: string; control: ReactNode; toggles: boolean }>([
   { focus: "a page button", control: <button type="button" aria-label="Focused" />, toggles: true },
   {
+    focus: "the empty composer",
+    control: <div data-testid="composer-editor" contentEditable aria-label="Focused" />,
+    toggles: true,
+  },
+  {
+    focus: "a composer with an existing custom answer",
+    control: (
+      <div data-testid="composer-editor" contentEditable aria-label="Focused">
+        Version{" "}
+      </div>
+    ),
+    toggles: false,
+  },
+  {
+    focus: "the closed model picker",
+    control: (
+      <button
+        type="button"
+        role="combobox"
+        aria-expanded="false"
+        data-chat-provider-model-picker="true"
+        aria-label="Focused"
+      />
+    ),
+    toggles: true,
+  },
+  {
     focus: "a dialog",
     control: (
       <div role="dialog">
